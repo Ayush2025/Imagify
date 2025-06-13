@@ -1,20 +1,16 @@
 import axios from 'axios'
-import React, { useContext, useEffect } from 'react'
+import React, { useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { AppContext } from '../context/AppContext'
 import { toast } from 'react-toastify'
 
 const Verify = () => {
   const [searchParams] = useSearchParams()
   const success = searchParams.get('success')
   const transactionId = searchParams.get('transactionId')
-
-  const { backendUrl, loadCreditsData, token } = useContext(AppContext)
   const navigate = useNavigate()
 
   useEffect(() => {
-    // Don't try to verify until we have everything
-    if (!token) return
+    // only run when we have both params
     if (!transactionId || success === null) {
       toast.error('Invalid verification link.')
       return navigate('/')
@@ -22,29 +18,28 @@ const Verify = () => {
 
     const verifyStripe = async () => {
       try {
+        console.log('Verifying stripe payment...', { success, transactionId })
         const { data } = await axios.post(
-          `${backendUrl}/api/user/verify-stripe`,
-          { success, transactionId },
-          { headers: { token } }
+          '/api/user/verify-stripe',             // <-- make sure this matches your server route
+          { success, transactionId }
         )
+        console.log('Stripe verify response:', data)
 
         if (data.success) {
           toast.success(data.message)
-          await loadCreditsData()
         } else {
           toast.error(data.message)
         }
       } catch (err) {
-        console.error(err)
-        toast.error('Verification failed. Please try again.')
+        console.error('Verify call failed:', err)
+        toast.error('Verification failed. Check console for details.')
       } finally {
-        // Give the user a moment to see the toast
         setTimeout(() => navigate('/'), 1500)
       }
     }
 
     verifyStripe()
-  }, [token, transactionId, success, backendUrl, loadCreditsData, navigate])
+  }, [transactionId, success, navigate])
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center">

@@ -1,90 +1,104 @@
-import React, { createContext, useEffect, useState } from "react"
-import axios from "axios"
-import { toast } from "react-toastify"
-import { useNavigate } from "react-router-dom"
-import { auth } from "../firebase"
-import {
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signOut as fbSignOut
-} from "firebase/auth"
+// client/src/context/AppContext.jsx
+
+import React, { createContext, useState, useEffect } from 'react'
+import axios from 'axios'
+import { toast } from 'react-toastify'
+import { onAuthStateChanged } from 'firebase/auth'
+import { auth } from '../firebase'
 
 export const AppContext = createContext()
 
-const AppContextProvider = ({ children }) => {
+export default function AppContextProvider({ children }) {
+  const [token, setToken]       = useState(localStorage.getItem('token'))
+  const [user, setUser]         = useState(null)
   const [showLogin, setShowLogin] = useState(false)
-  const [token, setToken] = useState(localStorage.getItem("token") || "")
-  const [user, setUser] = useState(null)
-  const [credit, setCredit] = useState(0)
+  const [credit, setCredit]     = useState(0)
 
+  // Your own backend base URL 
   const backendUrl = import.meta.env.VITE_BACKEND_URL
-  const navigate = useNavigate()
 
-  // Listen for Firebase auth state changes
+  // Sync with Firebase Auth
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, async fbUser => {
-      if (fbUser) {
+    const unsubscribe = onAuthStateChanged(auth, async fbUser => {
+      if (fbUser && fbUser.emailVerified) {
+        // Grab the Firebase ID token and save it
         const idToken = await fbUser.getIdToken()
+        localStorage.setItem('token', idToken)
         setToken(idToken)
-        localStorage.setItem("token", idToken)
-        setUser({ name: fbUser.email }) // or fbUser.displayName if you set it
+        setUser({ name: fbUser.displayName || fbUser.email })
+
+        // Fetch current credit balance
+        loadCreditsData(idToken)
       } else {
-        setToken("")
-        localStorage.removeItem("token")
+        // Signed out or not verified
+        localStorage.removeItem('token')
+        setToken(null)
         setUser(null)
+        setCredit(0)
       }
     })
-    return () => unsub()
+
+    return () => unsubscribe()
   }, [])
 
-  // Load user credits from your backend
-  const loadCreditsData = async () => {
-    if (!token) return
+  // Load credit balance from your backend
+  const loadCreditsData = async (jwt = token) => {
+    if (!jwt) return
     try {
-      const { data } = await axios.get(`${backendUrl}/api/user/credits`, {
-        headers: { token }
-      })
+      const { data } = await axios.get(
+        `${backendUrl}/api/user/credits`,
+        { headers: { token: jwt } }
+      )
       if (data.success) {
         setCredit(data.credits)
-        setUser(data.user)
       }
     } catch (err) {
       toast.error(err.message)
     }
   }
 
-  useEffect(() => {
-    if (token) loadCreditsData()
-  }, [token])
+  // Generate an image (and auto-refresh credit balance)
+  const generateImage = async prompt => {
+    try {
+      const { data } = await axios.post(
+        `${backendUrl}/api/image/generate-image`,
+        { prompt },
+        { headers: { token } }
+      )
+      if (data.success) {
+        await loadCreditsData()
+        return data.resultImage
+      } else {
+        toast.error(data.message)
+        if (data.creditBalance === 0) {
+          // e.g. navigate('/buy')
+        }
+      }
+    } catch (err) {
+      toast.error(err.message)
+    }
+  }
 
-  // Firebase-powered auth methods
-  const loginWithEmail = (email, pw) =>
-    signInWithEmailAndPassword(auth, email, pw)
-
-  const registerWithEmail = (email, pw) =>
-    createUserWithEmailAndPassword(auth, email, pw)
-
-  const logout = () => fbSignOut(auth)
+  // Sign out via Firebase
+  const logout = () => {
+    auth.signOut()
+  }
 
   return (
     <AppContext.Provider
       value={{
-        showLogin,
-        setShowLogin,
         token,
         user,
+        showLogin,
+        setShowLogin,
         credit,
         loadCreditsData,
-        backendUrl,
-        loginWithEmail,
-        registerWithEmail,
-        logout
+        generateImage,
+        logout,
+        backendUrl
       }}
     >
       {children}
     </AppContext.Provider>
   )
 }
-
-export default AppContextProvider

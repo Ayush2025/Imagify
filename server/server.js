@@ -1,23 +1,23 @@
 import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
+import express from 'express'
+import cors from 'cors'
+import userRouter from './routes/userRoutes.js';
 import connectDB from './configs/mongodb.js';
-import userRoutes from './routes/userRoutes.js';
+import imageRouter from './routes/imageRoutes.js';
 
-await connectDB();
+// App Config
+const PORT = process.env.PORT || 4000
 const app = express();
-app.use(cors());
-app.use(express.json());
+await connectDB()
 
-// health check
-app.get('/api/health', (_req, res) => res.json({ ok:true }));
+// Intialize Middlewares
+app.use(express.json())
+app.use(cors())
 
-app.use('/api/user', userRoutes);
+// API routes
+app.use('/api/user',userRouter)
+app.use('/api/image',imageRouter)
 
-// optional root page
-app.get('/', (_req, res) =>
-  res.send('🚀 Imagify API is live. Try GET /api/health')
-);
+app.get('/', (req,res) => res.send("API Working"))
 
-const port = process.env.PORT||4000;
-app.listen(port,()=>console.log(`Listening ${port}`));
+app.listen(PORT, () => console.log('Server running on port ' + PORT));

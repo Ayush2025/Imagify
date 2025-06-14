@@ -1,27 +1,23 @@
-// server/server.js
-import 'dotenv/config'
-import express from 'express'
-import cors from 'cors'
-import connectDB from './configs/mongodb.js'
-import userRouter  from './routes/userRoutes.js'
-import imageRouter from './routes/imageRoutes.js'
+import 'dotenv/config';
+import express from 'express';
+import cors from 'cors';
+import connectDB from './configs/mongodb.js';
+import userRoutes from './routes/userRoutes.js';
 
-await connectDB()
+await connectDB();
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-const app = express()
+// health check
+app.get('/api/health', (_req, res) => res.json({ ok:true }));
 
-// Allow your Vercel client origin (or '*' for dev)
-app.use(cors({ origin: process.env.CORS_ORIGIN || true }))
-app.use(express.json())
+app.use('/api/user', userRoutes);
 
-// --- HEALTH CHECK (for your client to call) ---
-app.get('/api/health', (_req, res) => {
-  return res.json({ ok: true })
-})
+// optional root page
+app.get('/', (_req, res) =>
+  res.send('🚀 Imagify API is live. Try GET /api/health')
+);
 
-// --- YOUR API MOUNTING ---
-app.use('/api/user',  userRouter)
-app.use('/api/image', imageRouter)
-
-const port = process.env.PORT || 4000
-app.listen(port, () => console.log(`🚀 API listening on ${port}`))
+const port = process.env.PORT||4000;
+app.listen(port,()=>console.log(`Listening ${port}`));

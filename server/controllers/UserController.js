@@ -1,114 +1,323 @@
-import User from '../models/userModel.js';
-import Transaction from '../models/transactionModel.js';
-import Razorpay from 'razorpay';
-import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
-import Stripe from 'stripe';
+import userModel from "../models/userModel.js"
+import transactionModel from "../models/transactionModel.js"
+import razorpay from 'razorpay';
+import bcrypt from 'bcrypt'
+import jwt from 'jsonwebtoken'
+import stripe from "stripe";
 
-const razor = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID,
-  key_secret: process.env.RAZORPAY_KEY_SECRET
-});
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+// API to register user
+const registerUser = async (req, res) => {
 
-export const registerUser = async (req, res) => {
-  const { name, email, password } = req.body;
-  if (!name||!email||!password) return res.json({ success:false,message:'Missing' });
-  const hash = await bcrypt.hash(password,10);
-  const u = await User.create({ name, email, password: hash });
-  const token = jwt.sign({ id:u._id }, process.env.JWT_SECRET);
-  res.json({ success:true, token, user:{ name:u.name } });
-};
+    try {
+        const { name, email, password } = req.body;
 
-export const loginUser = async (req, res) => {
-  const { email, password } = req.body;
-  const u = await User.findOne({ email });
-  if (!u) return res.json({ success:false,message:'No user' });
-  if (!await bcrypt.compare(password,u.password))
-    return res.json({ success:false,message:'Bad creds' });
-  const token = jwt.sign({ id:u._id }, process.env.JWT_SECRET);
-  res.json({ success:true, token, user:{ name:u.name } });
-};
+        // checking for all data to register user
+        if (!name || !email || !password) {
+            return res.json({ success: false, message: 'Missing Details' })
+        }
 
-export const userCredits = async (req, res) => {
-  const u = await User.findById(req.userId);
-  res.json({ success:true, credits:u.creditBalance, user:{ name:u.name } });
-};
+        // hashing user password
+        const salt = await bcrypt.genSalt(10);
+        const hashedPassword = await bcrypt.hash(password, salt)
 
-export const paymentRazorpay = async (req, res) => {
-  const { planId } = req.body;
-  const mapping = {
-    Basic: { credits:5, amount:10 },
-    Advanced: { credits:25, amount:49 },
-    Business: { credits:120, amount:249 }
-  };
-  const p = mapping[planId];
-  if (!p) return res.json({ success:false,message:'Bad plan' });
-  const t = await Transaction.create({
-    userId:req.userId,
-    plan:planId, amount:p.amount, credits:p.credits, date:Date.now()
-  });
-  razor.orders.create({
-    amount: p.amount*100,
-    currency: process.env.CURRENCY,
-    receipt: t._id.toString()
-  }, (err, order) => {
-    if (err) return res.json({ success:false,message:err });
-    res.json({ success:true, order });
-  });
-};
+        const userData = {
+            name,
+            email,
+            password: hashedPassword,
+        }
 
-export const verifyRazorpay = async (req, res) => {
-  const { razorpay_order_id } = req.body;
-  const ord = await razor.orders.fetch(razorpay_order_id);
-  if (ord.status==='paid') {
-    const t = await Transaction.findById(ord.receipt);
-    if (!t.payment) {
-      await User.findByIdAndUpdate(t.userId, { $inc:{ creditBalance:t.credits } });
-      await t.updateOne({ payment:true });
+        const newUser = new userModel(userData)
+        const user = await newUser.save()
+
+        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET)
+
+        res.json({ success: true, token, user: { name: user.name } })
+
+    } catch (error) {
+        console.log(error)
+        res.json({ success: false, message: error.message })
     }
-    return res.json({ success:true });
-  }
-  res.json({ success:false,message:'Not paid' });
-};
+}
 
-export const paymentStripe = async (req, res) => {
-  const { planId } = req.body;
-  const mapping = {
-    Basic: { credits:5, amount:10 },
-    Advanced: { credits:25, amount:49 },
-    Business: { credits:120, amount:249 }
-  };
-  const p = mapping[planId];
-  if (!p) return res.json({ success:false,message:'Bad plan' });
-  const t = await Transaction.create({
-    userId:req.userId,
-    plan:planId, amount:p.amount, credits:p.credits, date:Date.now()
-  });
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types:['card'],
-    line_items:[{
-      price_data:{
-        currency:process.env.CURRENCY.toLowerCase(),
-        unit_amount:p.amount*100,
-        product_data:{ name:'Imagify Credits' }
-      },
-      quantity:1
-    }],
-    mode:'payment',
-    success_url:`${req.headers.origin}/verify?success=true&tx=${t._id}`,
-    cancel_url:`${req.headers.origin}/verify?success=false&tx=${t._id}`
-  });
-  res.json({ success:true, session_url:session.url });
-};
+// API to login user
+const loginUser = async (req, res) => {
 
-export const verifyStripe = async (req, res) => {
-  const { success, tx } = req.body;
-  if (success!=='true') return res.json({ success:false,message:'Failed' });
-  const t = await Transaction.findById(tx);
-  if (!t.payment) {
-    await User.findByIdAndUpdate(t.userId, { $inc:{ creditBalance:t.credits } });
-    await t.updateOne({ payment:true });
-  }
-  res.json({ success:true });
-};
+    try {
+        const { email, password } = req.body;
+        const user = await userModel.findOne({ email })
+
+        if (!user) {
+            return res.json({ success: false, message: "User does not exist" })
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password)
+
+        if (isMatch) {
+            const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET)
+            res.json({ success: true, token, user: { name: user.name } })
+        }
+        else {
+            res.json({ success: false, message: "Invalid credentials" })
+        }
+    } catch (error) {
+        console.log(error)
+        res.json({ success: false, message: error.message })
+    }
+}
+
+// API Controller function to get user available credits data
+const userCredits = async (req, res) => {
+    try {
+
+        const { userId } = req.body
+
+        // Fetching userdata using userId
+        const user = await userModel.findById(userId)
+        res.json({ success: true, credits: user.creditBalance, user: { name: user.name } })
+
+    } catch (error) {
+        console.log(error.message)
+        res.json({ success: false, message: error.message })
+    }
+}
+
+// razorpay gateway initialize
+const razorpayInstance = new razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
+
+
+// Payment API to add credits
+const paymentRazorpay = async (req, res) => {
+    try {
+
+        const { userId, planId } = req.body
+
+        const userData = await userModel.findById(userId)
+
+        // checking for planId and userdata
+        if (!userData || !planId) {
+            return res.json({ success: false, message: 'Missing Details' })
+        }
+
+        let credits, plan, amount, date
+
+        // Switch Cases for different plans
+        switch (planId) {
+            case 'Basic':
+                plan = 'Basic'
+                credits = 5
+                amount = 10
+                break;
+
+            case 'Advanced':
+                plan = 'Advanced'
+                credits = 25
+                amount = 49
+                break;
+
+            case 'Business':
+                plan = 'Business'
+                credits = 120
+                amount = 249
+                break;
+
+            default:
+                return res.json({ success: false, message: 'plan not found' })
+        }
+
+        date = Date.now()
+
+        // Creating Transaction Data
+        const transactionData = {
+            userId,
+            plan,
+            amount,
+            credits,
+            date
+        }
+
+        // Saving Transaction Data to Database
+        const newTransaction = await transactionModel.create(transactionData)
+
+        // Creating options to create razorpay Order
+        const options = {
+            amount: amount * 100,
+            currency: process.env.CURRENCY,
+            receipt: newTransaction._id,
+        }
+
+        // Creating razorpay Order
+        await razorpayInstance.orders.create(options, (error, order) => {
+            if (error) {
+                console.log(error);
+                return res.json({ success: false, message: error });
+            }
+            res.json({ success: true, order });
+        })
+
+    } catch (error) {
+        console.log(error)
+        res.json({ success: false, message: error.message })
+    }
+}
+
+// API Controller function to verify razorpay payment
+const verifyRazorpay = async (req, res) => {
+    try {
+
+        const { razorpay_order_id } = req.body;
+
+        // Fetching order data from razorpay
+        const orderInfo = await razorpayInstance.orders.fetch(razorpay_order_id);
+
+        // Checking for payment status
+        if (orderInfo.status === 'paid') {
+            const transactionData = await transactionModel.findById(orderInfo.receipt)
+            if (transactionData.payment) {
+                return res.json({ success: false, message: 'Payment Failed' })
+            }
+
+            // Adding Credits in user data
+            const userData = await userModel.findById(transactionData.userId)
+            const creditBalance = userData.creditBalance + transactionData.credits
+            await userModel.findByIdAndUpdate(userData._id, { creditBalance })
+
+            // Marking the payment true 
+            await transactionModel.findByIdAndUpdate(transactionData._id, { payment: true })
+
+            res.json({ success: true, message: "Credits Added" });
+        }
+        else {
+            res.json({ success: false, message: 'Payment Failed' });
+        }
+
+    } catch (error) {
+        console.log(error);
+        res.json({ success: false, message: error.message });
+    }
+}
+
+// Stripe Gateway Initialize
+const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY)
+
+// Payment API to add credits ( Stripe )
+const paymentStripe = async (req, res) => {
+    try {
+
+        const { userId, planId } = req.body
+        const { origin } = req.headers
+
+        const userData = await userModel.findById(userId)
+
+        // checking for planId and userdata
+        if (!userData || !planId) {
+            return res.json({ success: false, message: 'Invalid Credentials' })
+        }
+
+        let credits, plan, amount, date
+
+        // Switch Cases for different plans
+        switch (planId) {
+            case 'Basic':
+                plan = 'Basic'
+                credits = 5
+                amount = 10
+                break;
+
+            case 'Advanced':
+                plan = 'Advanced'
+                credits = 25
+                amount = 49
+                break;
+
+            case 'Business':
+                plan = 'Business'
+                credits = 120
+                amount = 249
+                break;
+
+
+            default:
+                return res.json({ success: false, message: 'plan not found' })
+        }
+
+        date = Date.now()
+
+        // Creating Transaction Data
+        const transactionData = {
+            userId,
+            plan,
+            amount,
+            credits,
+            date
+        }
+
+        // Saving Transaction Data to Database
+        const newTransaction = await transactionModel.create(transactionData)
+
+        const currency = process.env.CURRENCY.toLocaleLowerCase()
+
+        // Creating line items to for Stripe
+        const line_items = [{
+            price_data: {
+                currency,
+                product_data: {
+                    name: "Credit Purchase"
+                },
+                unit_amount: transactionData.amount * 100
+            },
+            quantity: 1
+        }]
+
+        const session = await stripeInstance.checkout.sessions.create({
+            success_url: `${origin}/verify?success=true&transactionId=${newTransaction._id}`,
+            cancel_url: `${origin}/verify?success=false&transactionId=${newTransaction._id}`,
+            line_items: line_items,
+            mode: 'payment',
+        })
+        
+        res.json({ success: true, session_url: session.url });
+
+    } catch (error) {
+        console.log(error)
+        res.json({ success: false, message: error.message })
+    }
+}
+
+// API Controller function to verify stripe payment
+const verifyStripe = async (req, res) => {
+    try {
+
+        const { transactionId, success } = req.body
+
+        // Checking for payment status
+        if (success === 'true') {
+            const transactionData = await transactionModel.findById(transactionId)
+            if (transactionData.payment) {
+                return res.json({ success: false, message: 'Payment Already Verified' })
+            }
+
+            // Adding Credits in user data
+            const userData = await userModel.findById(transactionData.userId)
+            const creditBalance = userData.creditBalance + transactionData.credits
+            await userModel.findByIdAndUpdate(userData._id, { creditBalance })
+
+            // Marking the payment true 
+            await transactionModel.findByIdAndUpdate(transactionData._id, { payment: true })
+
+            res.json({ success: true, message: "Credits Added" });
+        }
+        else {
+            res.json({ success: false, message: 'Payment Failed' });
+        }
+
+    } catch (error) {
+        console.log(error);
+        res.json({ success: false, message: error.message });
+    }
+}
+
+
+export { registerUser, loginUser, userCredits, paymentRazorpay, verifyRazorpay, paymentStripe, verifyStripe }

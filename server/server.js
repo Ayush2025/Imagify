@@ -1,43 +1,27 @@
+// server/server.js
 import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
-import path from 'path'
-import { fileURLToPath } from 'url'
-
 import connectDB from './configs/mongodb.js'
 import userRouter  from './routes/userRoutes.js'
 import imageRouter from './routes/imageRoutes.js'
 
+await connectDB()
+
 const app = express()
-app.use(cors())
+
+// Allow your Vercel client origin (or '*' for dev)
+app.use(cors({ origin: process.env.CORS_ORIGIN || true }))
 app.use(express.json())
 
-// 1) quick health check, no DB required
+// --- HEALTH CHECK (for your client to call) ---
 app.get('/api/health', (_req, res) => {
   return res.json({ ok: true })
 })
 
-// 2) now connect to MongoDB
-connectDB()
-  .then(() => console.log('✅ MongoDB connected'))
-  .catch(err => {
-    console.error('❌ MongoDB connection error:', err)
-    process.exit(1)
-  })
-
-// 3) mount your real APIs
+// --- YOUR API MOUNTING ---
 app.use('/api/user',  userRouter)
 app.use('/api/image', imageRouter)
 
-// 4) serve React from /client/dist
-const __filename = fileURLToPath(import.meta.url)
-const __dirname  = path.dirname(__filename)
-const clientDist = path.join(__dirname, 'client/dist')
-
-app.use(express.static(clientDist))
-app.get('*', (_req, res) => {
-  res.sendFile(path.join(clientDist, 'index.html'))
-})
-
 const port = process.env.PORT || 4000
-app.listen(port, () => console.log(`🚀 Listening on ${port}`))
+app.listen(port, () => console.log(`🚀 API listening on ${port}`))

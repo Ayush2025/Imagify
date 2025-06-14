@@ -1,50 +1,59 @@
 import React, { createContext, useState, useEffect } from 'react'
-import { auth } from '../firebase'
-import {
-  onAuthStateChanged,
-  signOut as fbSignOut
-} from 'firebase/auth'
+import axios from 'axios'
+import { toast } from 'react-toastify'
 
-export const AuthContext = createContext({
-  user: null,
-  loading: true,
-  logout: () => {}
-})
+export const AppContext = createContext()
 
-const AuthContextProvider = ({ children }) => {
-  const [user, setUser] = useState(null)       // { uid, email, token } or null
-  const [loading, setLoading] = useState(true) // while we check auth status
+const AppContextProvider = ({ children }) => {
+  const [showLogin, setShowLogin] = useState(false)
+  const [token, setToken] = useState(localStorage.getItem('token'))
+  const [user, setUser] = useState(null)
+  const [credit, setCredit] = useState(0)
+
+  const backendUrl = import.meta.env.VITE_BACKEND_URL
+
+  const loadCreditsData = async () => {
+    try {
+      const { data } = await axios.get(`${backendUrl}/api/user/credits`, {
+        headers: { token }
+      })
+      if (data.success) {
+        setCredit(data.credits)
+        setUser(data.user)
+      }
+    } catch (err) {
+      toast.error(err.message)
+    }
+  }
 
   useEffect(() => {
-    // subscribe to Firebase auth state changes
-    const unsubscribe = onAuthStateChanged(auth, async (fbUser) => {
-      if (fbUser) {
-        // fetch fresh ID token
-        const token = await fbUser.getIdToken()
-        setUser({
-          uid: fbUser.uid,
-          email: fbUser.email,
-          token
-        })
-      } else {
-        setUser(null)
-      }
-      setLoading(false)
-    })
-
-    return () => unsubscribe()
-  }, [])
+    if (token) loadCreditsData()
+  }, [token])
 
   const logout = () => {
-    // sign out from Firebase
-    fbSignOut(auth)
+    localStorage.removeItem('token')
+    setToken(null)
+    setUser(null)
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, logout }}>
+    <AppContext.Provider
+      value={{
+        showLogin,
+        setShowLogin,
+        token,
+        setToken,
+        user,
+        setUser,
+        credit,
+        loadCreditsData,
+        backendUrl,
+        logout
+      }}
+    >
       {children}
-    </AuthContext.Provider>
+    </AppContext.Provider>
   )
 }
 
-export default AuthContextProvider
+export default AppContextProvider

@@ -1,40 +1,32 @@
-// server/middleware/auth.js
-import admin from 'firebase-admin';
+import jwt from 'jsonwebtoken';
 
-//
-// Initialize Firebase Admin SDK once
-//
-if (!admin.apps.length) {
-  const serviceAccount = JSON.parse(
-    process.env.FIREBASE_SERVICE_ACCOUNT_JSON
-  );
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-}
-
+// User authentication middleware
 const authUser = async (req, res, next) => {
-  // Expect the Firebase ID Token in the `token` header
-  const idToken = req.headers.token;
-  if (!idToken) {
+  // Try both a custom `token:` header and a standard `Authorization: Bearer ...`
+  const rawToken =
+    req.headers.token ||
+    (req.headers.authorization || '').split(' ')[1];
+
+  if (!rawToken) {
     return res.status(401).json({
       success: false,
-      message: 'Not Authorized. No token provided.',
+      message: 'Not Authorized. Please log in again.',
     });
   }
 
   try {
-    // Verify & decode
-    const decoded = await admin.auth().verifyIdToken(idToken);
-    // Attach the Firebase UID as userId
-    req.body.userId = decoded.uid;
+    // Verify with your JWT secret; make sure process.env.JWT_SECRET is set
+    const decoded = jwt.verify(rawToken, process.env.JWT_SECRET);
+    if (!decoded.id) {
+      throw new Error('Invalid token payload');
+    }
+    // Attach userId for downstream controllers
+    req.body.userId = decoded.id;
     next();
   } catch (err) {
-    console.error('Firebase auth error:', err);
     return res.status(401).json({
       success: false,
-      message: 'Not Authorized. Invalid or expired token.',
+      message: err.message,
     });
   }
 };

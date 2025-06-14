@@ -11,6 +11,10 @@ await connectDB()
 import userRouter  from './routes/userRoutes.js'
 import imageRouter from './routes/imageRoutes.js'
 
+// in server.js, after your routers…
+app.get('/api/health', (_, res) => res.json({ ok: true }))
+
+
 const app = express()
 app.use(cors())
 app.use(express.json())

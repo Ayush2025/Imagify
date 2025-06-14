@@ -1,34 +1,13 @@
 import jwt from 'jsonwebtoken';
 
-// User authentication middleware
-const authUser = async (req, res, next) => {
-  // Try both a custom `token:` header and a standard `Authorization: Bearer ...`
-  const rawToken =
-    req.headers.token ||
-    (req.headers.authorization || '').split(' ')[1];
-
-  if (!rawToken) {
-    return res.status(401).json({
-      success: false,
-      message: 'Not Authorized. Please log in again.',
-    });
-  }
-
+export default (req, res, next) => {
+  const token = req.headers.token;
+  if (!token) return res.status(401).json({ success: false, message: 'No token' });
   try {
-    // Verify with your JWT secret; make sure process.env.JWT_SECRET is set
-    const decoded = jwt.verify(rawToken, process.env.JWT_SECRET);
-    if (!decoded.id) {
-      throw new Error('Invalid token payload');
-    }
-    // Attach userId for downstream controllers
-    req.body.userId = decoded.id;
+    const { id } = jwt.verify(token, process.env.JWT_SECRET);
+    req.userId = id;
     next();
-  } catch (err) {
-    return res.status(401).json({
-      success: false,
-      message: err.message,
-    });
+  } catch {
+    res.status(401).json({ success: false, message: 'Invalid token' });
   }
 };
-
-export default authUser;

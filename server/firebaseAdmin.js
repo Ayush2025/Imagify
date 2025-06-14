@@ -1,14 +1,16 @@
-// server/firebaseAdmin.js
-import admin from 'firebase-admin';
+import { initializeApp, cert } from 'firebase-admin/app';
 
-if (!admin.apps.length) {
-  const serviceAccount = JSON.parse(
-    process.env.FIREBASE_SERVICE_ACCOUNT_JSON
+if (!process.env.FIREBASE_SERVICE_ACCOUNT) {
+  throw new Error(
+    'FIREBASE_SERVICE_ACCOUNT env var is missing. It should be the JSON string of your service account key.'
   );
-
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
 }
 
-export const auth = admin.auth();
+// Parse the JSON blob you set in Vercel/GitHub Secrets
+const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+
+initializeApp({
+  credential: cert(serviceAccount),
+});
+
+console.log('✅ Firebase Admin initialized');

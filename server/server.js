@@ -1,23 +1,39 @@
-import 'dotenv/config';
+// server.js
+import 'dotenv/config'
 import express from 'express'
 import cors from 'cors'
-import userRouter from './routes/userRoutes.js';
-import connectDB from './configs/mongodb.js';
-import imageRouter from './routes/imageRoutes.js';
+import path from 'path'
+import { fileURLToPath } from 'url'
 
-// App Config
-const PORT = process.env.PORT || 4000
-const app = express();
+// — your routers —
+import userRouter  from './routes/userRoutes.js'
+import imageRouter from './routes/imageRoutes.js'
+
+// connect to MongoDB (your existing code)
+import connectDB from './configs/mongodb.js'
 await connectDB()
 
-// Intialize Middlewares
-app.use(express.json())
+const app = express()
 app.use(cors())
+app.use(express.json())
 
-// API routes
-app.use('/api/user',userRouter)
-app.use('/api/image',imageRouter)
+// mount your APIs under /api
+app.use('/api/user',  userRouter)
+app.use('/api/image', imageRouter)
 
-app.get('/', (req,res) => res.send("API Working"))
+// (optional) if you want a quick health-check:
+// app.get('/api/health', (_req, res) => res.json({ ok: true }))
 
-app.listen(PORT, () => console.log('Server running on port ' + PORT));
+// serve React build for all other routes
+const __filename = fileURLToPath(import.meta.url)
+const __dirname  = path.dirname(__filename)
+const clientDist = path.join(__dirname, 'client/dist')  // or 'client/build'
+
+app.use(express.static(clientDist))
+
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(clientDist, 'index.html'))
+})
+
+const port = process.env.PORT || 4000
+app.listen(port, () => console.log(`🚀 Listening on ${port}`))

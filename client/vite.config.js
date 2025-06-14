@@ -3,10 +3,10 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  plugins: [react()],
-  root: 'client',
+  root: '.',            // <-- "client/" is already CWD when this runs
   build: {
-    outDir: '../client/dist',  // <-- make sure Vercel sees this
+    outDir: 'dist',     // emits client/dist
     emptyOutDir: true
-  }
+  },
+  plugins: [react()]
 })

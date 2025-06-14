@@ -56,4 +56,7 @@ const AppContextProvider = ({ children }) => {
   )
 }
 
+
 export default AppContextProvider
+export { AppContext }
+

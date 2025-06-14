@@ -1,22 +1,22 @@
 {
   "version": 2,
   "builds": [
-    // ① Build your client (static-build)
+    
     {
       "src": "client/package.json",
       "use": "@vercel/static-build",
       "config": { "distDir": "dist" }         
     },
-    // ② Bundle your server
+   
     {
       "src": "server.js",
       "use": "@vercel/node"
     }
   ],
   "routes": [
-    // 1) Any /api/* goes to your Node server
+   
     { "src": "/api/(.*)", "dest": "server.js" },
-    // 2) Everything else (/, /about, /foo/bar, etc.) serves your React app
+    
     { "src": "/(.*)",       "dest": "client/dist/$1" }
   ]
 }

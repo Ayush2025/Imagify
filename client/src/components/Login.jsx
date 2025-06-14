@@ -1,69 +1,31 @@
-import React, { useState, useContext } from 'react'
-import axios from 'axios'
-import { AppContext } from '../context/AppContext'
-import { toast } from 'react-toastify'
+import React, { useContext, useState } from 'react';
+import axios from 'axios';
+import { toast } from 'react-toastify';
+import { AuthContext } from '../context/AuthContext';
 
 export default function Login() {
-  const [mode, setMode] = useState('Login') // or 'SignUp'
-  const [name,  setName]  = useState('')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
+  const { login, backend } = useContext(AuthContext);
+  const [mode, setMode] = useState('login');
+  const [name,email,password] = ['','','']; // wire up inputs…
 
-  const { backendUrl, setShowLogin, login } = useContext(AppContext)
-
-  const handleSubmit = async e => {
-    e.preventDefault()
+  const submit = async e => {
+    e.preventDefault();
     try {
-      const url = `${backendUrl}/api/user/${ mode === 'Login' ? 'login' : 'register' }`
-      const body = mode === 'Login'
-        ? { email, password }
-        : { name, email, password }
-
-      const { data } = await axios.post(url, body)
-
+      const url = `${backend}/api/user/${mode}`;
+      const { data } = await axios.post(url, { name,email,password });
       if (data.success) {
-        login(data.token, data.user)
-        setShowLogin(false)
-      } else {
-        toast.error(data.message)
-      }
-    } catch (err) {
-      toast.error(err.message)
+        login(data.token,data.user);
+        toast.success('Welcome!');
+      } else toast.error(data.message);
+    } catch(e) {
+      toast.error(e.message);
     }
-  }
+  };
 
   return (
-    <form onSubmit={handleSubmit}>
-      {mode !== 'Login' && (
-        <input
-          placeholder="Full Name"
-          value={name}
-          onChange={e => setName(e.target.value)}
-          required
-        />
-      )}
-      <input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={e => setEmail(e.target.value)}
-        required
-      />
-      <input
-        type="password"
-        placeholder="Password"
-        value={password}
-        onChange={e => setPassword(e.target.value)}
-        required
-      />
-      <button type="submit">
-        {mode === 'Login' ? 'Log In' : 'Sign Up'}
-      </button>
-      <p onClick={() => setMode(m => m === 'Login' ? 'SignUp' : 'Login')}>
-        {mode === 'Login'
-          ? "Don't have an account? Sign Up"
-          : 'Already have one? Log In'}
-      </p>
+    <form onSubmit={submit}>
+      {/* your inputs + toggle between “login” / “register” */}
+      <button type="submit">{mode}</button>
     </form>
-  )
+  );
 }

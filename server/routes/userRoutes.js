@@ -9,7 +9,7 @@ import {
   paymentStripe,
   verifyStripe,
 } from '../controllers/UserController.js';
-import authUser from '../middleware/auth.js';
+import authUser from '../middlewares/auth.js'
 
 const userRouter = express.Router();
 

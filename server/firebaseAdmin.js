@@ -1,15 +1,14 @@
 // server/firebaseAdmin.js
-import admin from 'firebase-admin'
-
-// Load your service-account JSON from an env var:
-const serviceAccount = JSON.parse(
-  process.env.FIREBASE_SERVICE_ACCOUNT_JSON
-)
+import admin from 'firebase-admin';
 
 if (!admin.apps.length) {
+  const serviceAccount = JSON.parse(
+    process.env.FIREBASE_SERVICE_ACCOUNT_JSON
+  );
+
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-  })
+  });
 }
 
-export const auth = admin.auth()
+export const auth = admin.auth();

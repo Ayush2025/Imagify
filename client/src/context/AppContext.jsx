@@ -1,76 +1,86 @@
-import { createContext, useState, useEffect } from 'react'
+import { createContext, useEffect, useState } from "react";
 import axios from 'axios'
 import { toast } from 'react-toastify'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from "react-router-dom";
 
 export const AppContext = createContext()
 
-export default function AppContextProvider({ children }) {
-  const [showLogin, setShowLogin] = useState(false)
-  const [token,     setToken]     = useState(localStorage.getItem('token') || '')
-  const [user,      setUser]      = useState(null)
-  const [credit,    setCredit]    = useState(0)
+const AppContextProvider = (props) => {
 
-  // 1) Grab the raw and strip any trailing slash
-  const rawBase   = import.meta.env.VITE_BACKEND_URL || ''
-  const backendUrl = rawBase.replace(/\/$/, '')
+    const [showLogin, setShowLogin] = useState(false)
+    const [token, setToken] = useState(localStorage.getItem('token'))
+    const [user, setUser] = useState(null)
 
-  const navigate = useNavigate()
+    const [credit, setCredit] = useState(false)
 
-  // 2) Health‐check on mount
-  useEffect(() => {
-    console.log('👉 BACKEND URL:', backendUrl)
-    fetch(`${backendUrl}/api/health`)
-      .then(r => r.json())
-      .then(d => console.log('🔋 Health:', d))
-      .catch(e => console.error('Health-check failed', e))
-  }, [backendUrl])
+    const backendUrl = import.meta.env.VITE_BACKEND_URL
+    const navigate = useNavigate()
 
-  // 3) Load credits, etc.
-  const loadCreditsData = async () => {
-    try {
-      const { data } = await axios.get(`${backendUrl}/api/user/credits`, {
-        headers: { token }
-      })
-      if (data.success) {
-        setCredit(data.credits)
-        setUser(data.user)
-      }
-    } catch (err) {
-      toast.error(err.message)
+    const loadCreditsData = async () => {
+        try {
+
+            const { data } = await axios.get(backendUrl + '/api/user/credits', { headers: { token } })
+            if (data.success) {
+                setCredit(data.credits)
+                setUser(data.user)
+            }
+
+        } catch (error) {
+            console.log(error)
+            toast.error(error.message)
+        }
     }
-  }
 
-  useEffect(() => {
-    if (token) loadCreditsData()
-  }, [token])
+    const generateImage = async (prompt) => {
+        try {
 
-  const login = (tok, usr) => {
-    localStorage.setItem('token', tok)
-    setToken(tok)
-    setUser(usr)
-  }
+            const { data } = await axios.post(backendUrl + '/api/image/generate-image', { prompt }, { headers: { token } })
 
-  const logout = () => {
-    localStorage.removeItem('token')
-    setToken('')
-    setUser(null)
-  }
+            if (data.success) {
+                loadCreditsData()
+                return data.resultImage
+            } else {
+                toast.error(data.message)
+                loadCreditsData()
+                if (data.creditBalance === 0) {
+                    navigate('/buy')
+                }
+            }
 
-  return (
-    <AppContext.Provider
-      value={{
+        } catch (error) {
+            toast.error(error.message)
+        }
+    }
+
+    const logout = () => {
+        localStorage.removeItem('token')
+        setToken('')
+        setUser(null)
+    }
+
+    useEffect(()=>{
+        if (token) {
+            loadCreditsData()
+        }
+    },[token])
+
+    const value = {
+        token, setToken,
+        user, setUser,
         showLogin, setShowLogin,
-        token,      setToken,
-        user,       setUser,
-        credit,     setCredit,
-        backendUrl,
+        credit, setCredit,
         loadCreditsData,
-        login,
+        backendUrl,
+        generateImage,
         logout
-      }}
-    >
-      {children}
-    </AppContext.Provider>
-  )
+    }
+
+    return (
+        <AppContext.Provider value={value}>
+            {props.children}
+        </AppContext.Provider>
+    )
+
 }
+
+export default AppContextProvider

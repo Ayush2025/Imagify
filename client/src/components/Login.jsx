@@ -1,104 +1,119 @@
-import React, { useContext, useEffect, useState } from "react"
-import { AppContext } from "../context/AppContext"
-import { toast } from "react-toastify"
-import { motion } from "framer-motion"
+// client/src/pages/Login.jsx
+import React, { useState, useEffect, useContext } from 'react'
+import { auth } from '../firebase'
+import {
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signInWithEmailAndPassword,
+  onAuthStateChanged
+} from 'firebase/auth'
+import { AppContext } from '../context/AppContext'
+import { toast } from 'react-toastify'
+import { motion } from 'framer-motion'
+import { assets } from '../assets/assets'
 
 const Login = () => {
-  const [mode, setMode] = useState("login") // "login" or "signup"
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
+  const [mode, setMode] = useState('Login') // or 'Sign Up'
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
 
-  const {
-    setShowLogin,
-    loginWithEmail,
-    registerWithEmail
-  } = useContext(AppContext)
+  const { setShowLogin, setToken, setUser } = useContext(AppContext)
+
+  // auto-close once the user is fully logged-in (and email verified)
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, user => {
+      if (user && user.emailVerified) {
+        // you could exchange the firebase ID token for your backend JWT here
+        user.getIdToken().then(idToken => {
+          localStorage.setItem('token', idToken)
+          setToken(idToken)
+          setUser({ name: user.displayName || email })
+          setShowLogin(false)
+        })
+      }
+    })
+    return unsubscribe
+  }, [])
 
   const handleSubmit = async e => {
     e.preventDefault()
     try {
-      if (mode === "login") {
-        await loginWithEmail(email, password)
-        toast.success("Logged in!")
+      if (mode === 'Sign Up') {
+        // create, then send verification
+        const cred = await createUserWithEmailAndPassword(auth, email, password)
+        await sendEmailVerification(cred.user)
+        toast.success('Verification e-mail sent. Please check your inbox.')
+        // optionally force user to click a button after verifying
       } else {
-        await registerWithEmail(email, password)
-        toast.success("Account created!")
+        // Login
+        const { user } = await signInWithEmailAndPassword(auth, email, password)
+        if (!user.emailVerified) {
+          toast.error('Please verify your e-mail before signing in.')
+          await auth.signOut()
+        }
+        // onAuthStateChanged will pick up successful login+verified
       }
-      setShowLogin(false)
     } catch (err) {
-      toast.error(err.message)
+      toast.error(err.message.replace('Firebase:', '').trim())
     }
   }
 
-  // Prevent background scrolling
-  useEffect(() => {
-    document.body.style.overflow = "hidden"
-    return () => {
-      document.body.style.overflow = ""
-    }
-  }, [])
-
   return (
-    <div className="fixed inset-0 z-50 backdrop-blur-sm bg-black/30 flex items-center justify-center">
+    <div className="fixed inset-0 flex items-center justify-center bg-black/30 backdrop-blur-sm z-50">
       <motion.form
         onSubmit={handleSubmit}
-        className="bg-white p-8 rounded-xl text-gray-700 w-80 relative"
-        initial={{ opacity: 0, y: 20 }}
+        className="bg-white p-8 rounded-xl relative text-gray-700 w-80"
+        initial={{ opacity: 0.2, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        <h2 className="text-2xl mb-4 text-center">
-          {mode === "login" ? "Log In" : "Sign Up"}
-        </h2>
+        <h2 className="text-2xl font-medium text-center">{mode}</h2>
 
-        <div className="mb-3">
-          <label className="block text-sm mb-1">Email</label>
+        {mode === 'Sign Up' && (
           <input
-            type="email"
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Full Name"
+            className="mt-4 w-full px-3 py-2 border rounded"
             required
-            value={email}
-            onChange={e => setEmail(e.target.value)}
-            className="w-full border px-3 py-2 rounded"
-            placeholder="you@example.com"
           />
-        </div>
-
-        <div className="mb-4">
-          <label className="block text-sm mb-1">Password</label>
-          <input
-            type="password"
-            required
-            value={password}
-            onChange={e => setPassword(e.target.value)}
-            className="w-full border px-3 py-2 rounded"
-            placeholder="••••••••"
-          />
-        </div>
+        )}
+        <input
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          placeholder="Email"
+          type="email"
+          className="mt-4 w-full px-3 py-2 border rounded"
+          required
+        />
+        <input
+          value={password}
+          onChange={e => setPassword(e.target.value)}
+          placeholder="Password"
+          type="password"
+          className="mt-4 w-full px-3 py-2 border rounded"
+          required
+        />
 
         <button
           type="submit"
-          className="w-full bg-blue-600 text-white py-2 rounded mb-2"
+          className="mt-6 w-full bg-blue-600 text-white py-2 rounded"
         >
-          {mode === "login" ? "Log In" : "Create Account"}
+          {mode === 'Login' ? 'Log In' : 'Create Account'}
         </button>
 
-        <p className="text-center text-sm">
-          {mode === "login"
-            ? "Don't have an account? "
-            : "Already have an account? "}
-          <span
-            className="text-blue-600 cursor-pointer"
-            onClick={() =>
-              setMode(mode === "login" ? "signup" : "login")
-            }
-          >
-            {mode === "login" ? "Sign Up" : "Log In"}
-          </span>
+        <p
+          className="mt-4 text-center text-sm text-blue-600 cursor-pointer"
+          onClick={() => setMode(mode === 'Login' ? 'Sign Up' : 'Login')}
+        >
+          {mode === 'Login'
+            ? "Don't have an account? Sign up"
+            : 'Already have one? Log in'}
         </p>
 
         <button
-          type="button"
-          className="absolute top-3 right-3 text-gray-400 hover:text-gray-600"
           onClick={() => setShowLogin(false)}
+          className="absolute top-3 right-3 text-gray-500 hover:text-gray-800"
         >
           ✕
         </button>

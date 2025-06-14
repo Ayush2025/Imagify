@@ -4,6 +4,7 @@ import axios from 'axios'
 import { toast } from 'react-toastify'
 import { useNavigate } from 'react-router-dom'
 
+// only one export of AppContext here:
 export const AppContext = createContext()
 
 const AppContextProvider = ({ children }) => {
@@ -17,7 +18,7 @@ const AppContextProvider = ({ children }) => {
 
   const loadCreditsData = async () => {
     try {
-      const { data } = await axios.get(backendUrl + '/api/user/credits', {
+      const { data } = await axios.get(`${backendUrl}/api/user/credits`, {
         headers: { token }
       })
       if (data.success) {
@@ -32,7 +33,7 @@ const AppContextProvider = ({ children }) => {
   const generateImage = async (prompt) => {
     try {
       const { data } = await axios.post(
-        backendUrl + '/api/image/generate-image',
+        `${backendUrl}/api/image/generate-image`,
         { prompt },
         { headers: { token } }
       )
@@ -55,9 +56,7 @@ const AppContextProvider = ({ children }) => {
   }
 
   useEffect(() => {
-    if (token) {
-      loadCreditsData()
-    }
+    if (token) loadCreditsData()
   }, [token])
 
   return (
